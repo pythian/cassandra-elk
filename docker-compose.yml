@@ -1,0 +1,127 @@
+version: '3'
+
+################################################
+# adjacents docker-compose file for cassandra + ELK
+# updated April 2018
+# author: Valerie Parham-Thompson
+
+services:
+
+################################################
+# operations server; run commands here
+    app:
+        container_name: app
+        image: dataindataout/opsjump
+        hostname: app
+        networks:
+          myring:
+            ipv4_address: 172.16.238.10
+        command: tail -f /dev/null
+
+################################################
+# servers to run a Cassandra cluster on
+# the "CASSANDRA*" variables will get pulled in via docker-entrypoint.sh
+
+    DC1C1:
+        container_name: DC1C1
+        image: cassandra:latest
+        hostname: DC1C1
+        networks: 
+            - myring
+        volumes:
+            - ./n1data:/var/lib/cassandra
+            - ./configuration/cassandra-env.sh:/etc/cassandra/cassandra-env.sh
+        environment:
+            - CASSANDRA_SEEDS=DC1C1,DC1C2,DC1C3
+            - CASSANDRA_CLUSTER_NAME=Dev_Cluster
+            - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+        ulimits:
+            memlock: -1
+            nproc: 32768
+            nofile: 100000
+        command: bash -c 'sleep 10;  /docker-entrypoint.sh cassandra -f'
+
+    DC1C2:
+        container_name: DC1C2
+        image: cassandra:latest
+        hostname: DC1C2
+        networks:
+            - myring
+        volumes:
+            - ./n2data:/var/lib/cassandra
+            - ./configuration/cassandra-env.sh:/etc/cassandra/cassandra-env.sh
+        environment:
+            - CASSANDRA_SEEDS=DC1C1,DC1C2,DC1C3
+            - CASSANDRA_CLUSTER_NAME=Dev_Cluster
+            - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+        depends_on:
+              - DC1C1
+        ulimits:
+            memlock: -1
+            nproc: 32768
+            nofile: 100000
+        command: bash -c 'sleep 10;  /docker-entrypoint.sh cassandra -f'
+
+    DC1C3:
+        container_name: DC1C3
+        image: cassandra:latest
+        hostname: DC1C3
+        networks: 
+            - myring
+        volumes:
+            - ./n3data:/var/lib/cassandra
+            - ./configuration/cassandra-env.sh:/etc/cassandra/cassandra-env.sh
+        environment:
+            - CASSANDRA_SEEDS=DC1C1,DC1C2,DC1C3
+            - CASSANDRA_CLUSTER_NAME=Dev_Cluster
+            - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+        depends_on:
+              - DC1C1
+        ulimits:
+            memlock: -1
+            nproc: 32768
+            nofile: 100000
+        command: bash -c 'sleep 10;  /docker-entrypoint.sh cassandra -f'
+
+#####################################################
+# pre-built E(L)K
+
+    elasticsearch:
+        container_name: elasticsearch
+        image: elasticsearch:latest
+        hostname: elasticsearch
+        volumes:
+          - ./configuration/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+        ports:
+          - "9200:9200"
+          - "9300:9300"
+        environment:
+          ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+        networks:
+          myring:
+            ipv4_address: 172.16.238.31
+
+    kibana:
+        container_name: kibana
+        image: kibana:latest
+        hostname: kibana
+        volumes:
+          - ./configuration/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+        ports:
+          - "5601:5601"
+        networks:
+          myring:
+            ipv4_address: 172.16.238.33
+        depends_on:
+          - elasticsearch
+
+########################################################
+# network
+
+networks:
+    myring:    
+        driver: bridge
+        ipam:
+          driver: default
+          config:
+          - subnet: 172.16.238.0/24
