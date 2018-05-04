@@ -94,6 +94,6 @@ Sample queries:
 
 - message:WARN*
 - message:(ERROR* OR WARN*)
-- message:(ERROR* OR WARN*) AND beat.hostname:C2
+- message:(ERROR* OR WARN*) AND beat.hostname:DC1C2
 
 Can also filter display by choosing from available fields on left.
